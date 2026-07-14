@@ -1,73 +1,73 @@
-"""Support for Big Ass Fans SenseME switch."""
+"""Support for Big Ass Fans SenseME switches."""
+
 from typing import Any
 
 from aiosenseme import SensemeFan
-from homeassistant.components.switch import DEVICE_CLASS_SWITCH, SwitchEntity
-from homeassistant.const import CONF_DEVICE
+
+from homeassistant.components.switch import SwitchEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SensemeEntity
-from .const import DOMAIN
 
-FAN_SWITCHS = [
-    # Turning on sleep mode will disable Whoosh
-    ["sleep_mode", "sleep_mode", "Sleep Mode"],
-    ["motion_fan_auto", "motion_fan_auto", "Motion"],
-]
+FAN_SWITCHES = (
+    ("sleep_mode", "sleep_mode", "Sleep Mode"),
+    ("motion_fan_auto", "motion_fan_auto", "Motion"),
+)
 
-FAN_LIGHT_SWITCHES = [
-    ["motion_light_auto", "motion_light_auto", "Light Motion"],
-]
+FAN_LIGHT_SWITCHES = (("motion_light_auto", "motion_light_auto", "Light Motion"),)
 
-LIGHT_SWITCHES = [
-    ["sleep_mode", "sleep_mode", "Sleep Mode"],
-    ["motion_light_auto", "motion_light_auto", "Motion"],
-]
+LIGHT_SWITCHES = (
+    ("sleep_mode", "sleep_mode", "Sleep Mode"),
+    ("motion_light_auto", "motion_light_auto", "Motion"),
+)
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
-    """Set up SenseME fans."""
-    device = hass.data[DOMAIN][entry.entry_id][CONF_DEVICE]
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up SenseME switches."""
+    device = entry.runtime_data
+    switches: list[HASensemeSwitch] = []
 
     if device.is_fan:
-        async_add_entities([HASensemeSwitch(device, *args) for args in FAN_SWITCHS])
+        switches.extend(HASensemeSwitch(device, *args) for args in FAN_SWITCHES)
         if device.has_light:
-            async_add_entities(
-                [HASensemeSwitch(device, *args) for args in FAN_LIGHT_SWITCHES]
+            switches.extend(
+                HASensemeSwitch(device, *args) for args in FAN_LIGHT_SWITCHES
             )
     elif device.is_light:
-        async_add_entities([HASensemeSwitch(device, *args) for args in LIGHT_SWITCHES])
+        switches.extend(HASensemeSwitch(device, *args) for args in LIGHT_SWITCHES)
+
+    async_add_entities(switches)
 
 
 class HASensemeSwitch(SensemeEntity, SwitchEntity):
-    """SenseME switch component."""
+    """Representation of a SenseME switch."""
+
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(
         self, device: SensemeFan, switch_type: str, attr: str, switch_name: str
     ) -> None:
         """Initialize the entity."""
-        self._attr = attr
-        self._switch_type = switch_type
+        self._device_attr = attr
         super().__init__(device, f"{device.name} {switch_name}")
-
-    @property
-    def device_class(self):
-        """Return an device class for this switch."""
-        return DEVICE_CLASS_SWITCH
-
-    @property
-    def unique_id(self):
-        """Return a unique identifier for this fan switch."""
-        return f"{self._device.uuid}-SWITCH-{self._switch_type}"
+        self._attr_unique_id = f"{device.uuid}-SWITCH-{switch_type}"
 
     @property
     def is_on(self) -> bool:
-        """Return true if the switch is on."""
-        return getattr(self._device, self._attr)
+        """Return whether the switch is on."""
+        return getattr(self._device, self._device_attr)
 
-    async def async_turn_on(self, **kwargs: Any):
+    async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the switch."""
-        setattr(self._device, self._attr, True)
+        setattr(self._device, self._device_attr, True)
 
-    async def async_turn_off(self, **kwargs: Any):
+    async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the switch."""
-        setattr(self._device, self._attr, False)
+        setattr(self._device, self._device_attr, False)

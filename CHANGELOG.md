@@ -1,5 +1,13 @@
 # Changelog for Home Assistant integration for SenseME fans
 
+## 3.0.0 - Restore support for current Home Assistant
+
+* Fix `aiosenseme` on Python 3.11 and newer by scheduling event waits as tasks.
+* Update platform setup, entity feature flags, device classes, light color temperature,
+  state attributes, and config entry data access to current Home Assistant APIs.
+* Fix discovered-device selection in the config flow.
+* Pin the latest published `aiosenseme` release and update validation tooling.
+
 ## 2.2.5 - Bump aiosenseme library to >= v0.5.5
 
 * Improve startup time when initially connecting to device.

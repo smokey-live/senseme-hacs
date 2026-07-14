@@ -1,4 +1,5 @@
 """Constants for the SenseME integration."""
+
 DOMAIN = "senseme"
 
 # Periodic fan update rate in minutes

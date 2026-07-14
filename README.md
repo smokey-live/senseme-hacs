@@ -1,6 +1,9 @@
 # Home Assistant integration for SenseME fans HACS Edition
 
-***Note: This integration is no longer being developed. Use the [Big Ass Fans](https://www.home-assistant.io/integrations/baf/) integration which is now a part of Home Assistant. ***
+> [!NOTE]
+> This fork keeps support for older SenseME firmware that cannot use Home
+> Assistant's built-in [Big Ass Fans](https://www.home-assistant.io/integrations/baf/)
+> integration. Use the built-in integration for fans running newer BAF firmware.
 
 The Haiku with SenseME fan is a WiFi connected fan and optional light from Big Ass Fans. This Home Assistant integration provides control of these fans and light. The occupancy sensor is also monitored. BAF made a standalone light for a while that is also compatible with this integration.
 
@@ -9,9 +12,17 @@ Now [aiosenseme](https://pypi.org/project/aiosenseme/) is the underlying library
 
 ## Installation
 
+### HACS custom repository
+
+1. Open HACS and choose **Integrations**.
+2. Open the menu and select **Custom repositories**.
+3. Add `https://github.com/smokey-live/senseme-hacs` as an **Integration**.
+4. Search for **SenseME**, install it, and restart Home Assistant.
+
 ### HACS
 
-If you have HACS installed on Home Assistant then just search integrations for **SenseME** and install.
+The original repository is no longer maintained, so use the custom repository steps
+above to install this maintained fork.
 
 ### Manual
 

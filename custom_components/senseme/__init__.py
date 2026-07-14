@@ -1,111 +1,83 @@
 """The SenseME integration."""
-import asyncio
+
 import logging
 
 from aiosenseme import SensemeDevice
 from aiosenseme import __version__ as aiosenseme_version
 from aiosenseme import async_get_device_by_device_info
-from homeassistant.components.binary_sensor import DOMAIN as BINARYSENSOR_DOMAIN
-from homeassistant.components.fan import DOMAIN as FAN_DOMAIN
-from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
-from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_DEVICE
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.device_registry import DeviceInfo, format_mac
+
+from .compat import apply_aiosenseme_compatibility_patch
 from .const import CONF_INFO, DOMAIN, UPDATE_RATE
 
-PLATFORMS = [FAN_DOMAIN, LIGHT_DOMAIN, BINARYSENSOR_DOMAIN, SWITCH_DOMAIN]
+PLATFORMS: list[Platform] = [
+    Platform.FAN,
+    Platform.LIGHT,
+    Platform.BINARY_SENSOR,
+    Platform.SWITCH,
+]
 
 _LOGGER = logging.getLogger(__name__)
 
-
-async def async_setup(hass: HomeAssistant, config: dict):
-    """Set up the SenseME component."""
-    _LOGGER.debug("Using aiosenseme library version %s", aiosenseme_version)
-    hass.data[DOMAIN] = {}
-    if config.get(DOMAIN) is not None:
-        _LOGGER.error(
-            "Configuration of senseme integration via yaml is deprecated, "
-            "instead use Home Assistant frontend to add this integration"
-        )
-    return True
+apply_aiosenseme_compatibility_patch()
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SenseME from a config entry."""
-    hass.data[DOMAIN][entry.entry_id] = {}
+    _LOGGER.debug("Using aiosenseme library version %s", aiosenseme_version)
 
     status, device = await async_get_device_by_device_info(
         info=entry.data[CONF_INFO], start_first=True, refresh_minutes=UPDATE_RATE
     )
 
-    if not status:
-        # even if the device could not connect it will keep trying because start_first=True
-        device.stop()
-        _LOGGER.warning(
-            "%s: Connect to address %s failed",
-            device.name,
-            device.address,
+    if not status or device is None:
+        if device is not None:
+            device.stop()
+        raise ConfigEntryNotReady(
+            f"Could not connect to SenseME device at {entry.data[CONF_INFO]['address']}"
         )
-        raise ConfigEntryNotReady
 
     await device.async_update(not status)
+    entry.runtime_data = device
+    entry.async_on_unload(device.stop)
 
-    hass.data[DOMAIN][entry.entry_id][CONF_DEVICE] = device
-
-    for component in PLATFORMS:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, component)
-        )
-
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    hass.data[DOMAIN][entry.entry_id][CONF_DEVICE].stop()
-
-    unload_ok = all(
-        await asyncio.gather(
-            *[
-                hass.config_entries.async_forward_entry_unload(entry, component)
-                for component in PLATFORMS
-            ]
-        )
-    )
-
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 class SensemeEntity:
-    """Base class for senseme entities."""
+    """Base class for SenseME entities."""
 
-    def __init__(self, device: SensemeDevice, name: str):
+    _attr_should_poll = False
+
+    def __init__(self, device: SensemeDevice, name: str) -> None:
         """Initialize the entity."""
         self._device = device
-        self._name = name
+        self._attr_name = name
+        self._attr_device_info = DeviceInfo(
+            connections={(dr.CONNECTION_NETWORK_MAC, format_mac(self._device.mac))},
+            identifiers={(DOMAIN, self._device.uuid)},
+            name=self._device.name,
+            manufacturer="Big Ass Fans",
+            model=self._device.model,
+            sw_version=self._device.fw_version,
+            suggested_area=self._device.room_name,
+        )
 
     @property
-    def device_info(self) -> dict:
-        """Get device info for Home Assistant."""
-        return {
-            "connections": {("mac", self._device.mac)},
-            "identifiers": {("uuid", self._device.uuid)},
-            "name": self._device.name,
-            "manufacturer": "Big Ass Fans",
-            "model": self._device.model,
-            "sw_version": self._device.fw_version,
-            "suggested_area": self._device.room_name,
-        }
-
-    @property
-    def device_state_attributes(self) -> dict:
-        """Get the current device state attributes."""
+    def extra_state_attributes(self) -> dict[str, str]:
+        """Return additional SenseME state attributes."""
         return {
             "room_name": self._device.room_name,
             "room_type": self._device.room_type,
@@ -113,23 +85,18 @@ class SensemeEntity:
 
     @property
     def available(self) -> bool:
-        """Return True if available/operational."""
+        """Return whether the device is available."""
         return self._device.available
 
-    @property
-    def should_poll(self) -> bool:
-        """State is pushed."""
-        return False
+    @callback
+    def _async_update_from_device(self) -> None:
+        """Process an update pushed by the device."""
+        self.async_write_ha_state()
 
-    @property
-    def name(self) -> str:
-        """Get name."""
-        return self._name
+    async def async_added_to_hass(self) -> None:
+        """Register the device update listener."""
+        self._device.add_callback(self._async_update_from_device)
 
-    async def async_added_to_hass(self):
-        """Add data updated listener after this object has been initialized."""
-        self._device.add_callback(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self):
-        """Remove data updated listener after this object has been initialized."""
-        self._device.remove_callback(self.async_write_ha_state)
+    async def async_will_remove_from_hass(self) -> None:
+        """Remove the device update listener."""
+        self._device.remove_callback(self._async_update_from_device)

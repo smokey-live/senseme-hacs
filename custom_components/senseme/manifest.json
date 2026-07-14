@@ -1,16 +1,17 @@
 {
   "domain": "senseme",
   "name": "SenseME",
-  "version": "2.2.5",
+  "version": "3.0.0",
   "config_flow": true,
-  "documentation": "https://www.github.com/mikelawrence/senseme-hacs",
-  "issue_tracker": "https://github.com/mikelawrence/senseme-hacs/issues",
+  "documentation": "https://github.com/smokey-live/senseme-hacs",
+  "issue_tracker": "https://github.com/smokey-live/senseme-hacs/issues",
   "dependencies": [],
   "codeowners": [
-    "@mikelawrence"
+    "@smokey-live"
   ],
   "requirements": [
-    "aiosenseme>=0.5.5,<0.6.0"
+    "aiosenseme==0.6.1"
   ],
+  "integration_type": "device",
   "iot_class": "local_push"
 }

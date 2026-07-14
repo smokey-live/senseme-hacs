@@ -1,3 +1,3 @@
 """Version for senseme-hacs."""
 
-__version__ = "2.2.5"
+__version__ = "3.0.0"

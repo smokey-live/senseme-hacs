@@ -3,8 +3,9 @@
   "domains": [
     "fan",
     "light",
-    "binary_sensor"
+    "binary_sensor",
+    "switch"
   ],
-  "homeassistant": "2021.3.0",
+  "homeassistant": "2024.12.0",
   "iot_class": "Local Push"
 }
